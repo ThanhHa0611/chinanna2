@@ -1,0 +1,10 @@
+backend/venv
+backend/uploads
+backend/__pycache__
+**/.env
+**/.env.*
+!**/.env.example
+**/node_modules
+deploy/public
+deploy/tunnel-logs
+*.log

@@ -1,0 +1,49 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "version": 2,
+  "buildCommand": "npm run vercel-build",
+  "outputDirectory": "deploy/vercel-out",
+  "installCommand": "npm install",
+  "framework": null,
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://REPLACE_WITH_RENDER_BACKEND_URL/api/:path*"
+    },
+    {
+      "source": "/hskjchaihldkajj",
+      "destination": "/hskjchaihldkajj/index.html"
+    },
+    {
+      "source": "/hskjchaihldkajj/:path*",
+      "destination": "/hskjchaihldkajj/index.html"
+    },
+    {
+      "source": "/hjgafjkshdgfahjkkjcsdhkk",
+      "destination": "/hjgafjkshdgfahjkkjcsdhkk/index.html"
+    },
+    {
+      "source": "/hjgafjkshdgfahjkkjcsdhkk/:path*",
+      "destination": "/hjgafjkshdgfahjkkjcsdhkk/index.html"
+    },
+    {
+      "source": "/yaghkcjhaiuhahjks",
+      "destination": "/yaghkcjhaiuhahjks/index.html"
+    },
+    {
+      "source": "/yaghkcjhaiuhahjks/:path*",
+      "destination": "/yaghkcjhaiuhahjks/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Permissions-Policy",
+          "value": "geolocation=(self)"
+        }
+      ]
+    }
+  ]
+}

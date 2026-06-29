@@ -1,0 +1,22 @@
+{
+  "name": "phong-van",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Phong Van — 3 frontends trong 1 workspace (1 lần npm install + build)",
+  "workspaces": [
+    "frontend",
+    "frontend-admin",
+    "frontend-superadmin"
+  ],
+  "scripts": {
+    "build": "node scripts/build-all-frontends.mjs vercel",
+    "build:public": "node scripts/build-all-frontends.mjs public",
+    "vercel-build": "node scripts/build-all-frontends.mjs vercel",
+    "dev:mentee": "npm run dev -w @phong-van/mentee",
+    "dev:mentor": "npm run dev -w @phong-van/mentor",
+    "dev:superadmin": "npm run dev -w @phong-van/superadmin"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

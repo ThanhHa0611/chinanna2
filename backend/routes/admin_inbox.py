@@ -1,0 +1,160 @@
+
+from datetime import datetime, timedelta, timezone
+from functools import wraps
+import hashlib
+import io
+import json
+import os
+import re
+import secrets
+import shutil
+import uuid
+from pathlib import Path
+from urllib import error as urllib_error
+from urllib import request as urllib_request
+
+import bcrypt
+import jwt
+from bson import ObjectId
+from bson.errors import InvalidId
+from flask import g, jsonify, make_response, request, send_file
+from pymongo.errors import DuplicateKeyError, PyMongoError
+from werkzeug.utils import secure_filename
+
+from config import *
+from database import *
+
+from extensions import app
+from database import with_db
+from auth.security import *
+from auth.users import *
+from auth.login_tracking import *
+from auth.validators import *
+from services.access import *
+from services.admins import *
+from services.apply_documents import *
+from services.apply_progress import *
+from services.feedback import *
+from services.files import *
+from services.hdnk_nckh import *
+from services.inbox import *
+from services.notifications import *
+from services.utils import *
+
+@app.get("/api/admin/inbox")
+@with_db
+def admin_inbox_list():
+    from inbox_tasks import build_daily_board, list_inbox_for_admin, process_due_reminders
+
+    admin, error_response = get_authenticated_admin()
+    if error_response:
+        return error_response
+
+    if not admin_is_approved(admin):
+        return jsonify({"detail": "Tài khoản chưa được cấp quyền admin."}), 403
+
+    process_due_reminders(mentor_inbox, send_daily_inbox_summary_for_mentor)
+    items = list_inbox_for_admin(mentor_inbox, admin, limit=100, base_url=BACKEND_PUBLIC_URL)
+    pending = [item for item in items if item.get("status") == "pending"]
+    board = build_daily_board(items)
+    return jsonify({
+        "items": items,
+        "pending_count": len(pending),
+        "board": board,
+    })
+
+
+@app.post("/api/admin/inbox/<task_id>/view")
+@with_db
+def admin_inbox_view(task_id: str):
+    from bson import ObjectId
+    from bson.errors import InvalidId
+    from inbox_tasks import record_inbox_view, serialize_inbox_task
+
+    admin, error_response = get_authenticated_admin()
+    if error_response:
+        return error_response
+
+    if not admin_is_approved(admin):
+        return jsonify({"detail": "Tài khoản chưa được cấp quyền admin."}), 403
+
+    try:
+        oid = ObjectId(task_id)
+    except InvalidId:
+        return jsonify({"detail": "Không tìm thấy công việc"}), 404
+
+    task = mentor_inbox.find_one({"_id": oid, "audience": "mentor"})
+    if not task:
+        return jsonify({"detail": "Không tìm thấy công việc"}), 404
+
+    task = record_inbox_view(mentor_inbox, task) or task
+    apply_inbox_view_side_effects(task)
+    return jsonify({
+        "message": "Đã ghi nhận xem",
+        "item": serialize_inbox_task(task, base_url=BACKEND_PUBLIC_URL),
+    })
+
+
+@app.post("/api/admin/inbox/<task_id>/confirm")
+@with_db
+def admin_inbox_confirm(task_id: str):
+    from inbox_tasks import confirm_inbox_task, serialize_inbox_task
+
+    admin, error_response = get_authenticated_admin()
+    if error_response:
+        return error_response
+
+    if not admin_is_approved(admin):
+        return jsonify({"detail": "Tài khoản chưa được cấp quyền admin."}), 403
+
+    task = confirm_inbox_task(mentor_inbox, task_id=task_id, via="app")
+    if not task:
+        return jsonify({"detail": "Không tìm thấy công việc"}), 404
+    apply_inbox_confirm_side_effects(task)
+    notify_mentee_inbox_processed(task)
+    return jsonify({
+        "message": "Đã xác nhận xử lí",
+        "item": serialize_inbox_task(task),
+    })
+
+
+@app.patch("/api/admin/inbox/<task_id>/reminder")
+@with_db
+def admin_inbox_reminder(task_id: str):
+    from inbox_tasks import update_reminder_schedule
+
+    admin, error_response = get_authenticated_admin()
+    if error_response:
+        return error_response
+
+    if not admin_is_approved(admin):
+        return jsonify({"detail": "Tài khoản chưa được cấp quyền admin."}), 403
+
+    data = request.get_json(silent=True) or {}
+    hours = data.get("hours")
+    reminder_at_raw = (data.get("reminder_at") or "").strip()
+    reminder_at = None
+
+    if reminder_at_raw:
+        try:
+            reminder_at = datetime.fromisoformat(reminder_at_raw.replace("Z", "+00:00"))
+        except ValueError:
+            return jsonify({"detail": "Thời gian nhắc không hợp lệ"}), 400
+    elif hours is not None:
+        try:
+            hours = int(hours)
+        except (TypeError, ValueError):
+            return jsonify({"detail": "Giờ nhắc lại không hợp lệ"}), 400
+    else:
+        return jsonify({"detail": "Cần hours hoặc reminder_at"}), 400
+
+    item = update_reminder_schedule(
+        mentor_inbox,
+        task_id,
+        hours=hours if reminder_at is None else None,
+        reminder_at=reminder_at,
+    )
+    if not item:
+        return jsonify({"detail": "Không tìm thấy công việc đang chờ"}), 404
+    return jsonify({"message": "Đã cập nhật lịch nhắc", "item": item})
+

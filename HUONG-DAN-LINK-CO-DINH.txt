@@ -1,0 +1,106 @@
+PHONG VAN — 3 LINK RIENG CHO MENTEE / MENTOR / SUPER ADMIN
+==========================================================
+
+Muc tieu: gui 3 link khac nhau — khong dung 1 trang landing chung.
+
+TONG QUAN (tunnel mien phi — trycloudflare)
+-------------------------------------------
+1. build-public.bat (lan dau hoac sau khi sua code)
+2. start-tunnel-3link.bat
+3. Copy 3 link trong file LINK-3-CUA.txt:
+   - Mentee      → gui rieng cho mentee
+   - Mentor      → gui rieng cho mentor
+   - Super Admin → gui rieng cho super admin
+
+Trang goc (/) khong con hien menu chon ca 3 nua.
+
+
+TONG QUAN (domain co dinh — can mua domain)
+-------------------------------------------
+Dat 3 subdomain tren Cloudflare, cung tro 1 tunnel (duong dan bi mat — xem deploy/public_paths.json):
+  mentee.yourdomain.com      → /hskjchaihldkajj/
+  mentor.yourdomain.com      → /hjgafjkshdgfahjkkjcsdhkk/login
+  admin.yourdomain.com       → /yaghkcjhaiuhahjks/login
+
+Chi tiet: xem phan Cloudflare Tunnel ben duoi.
+
+
+BUOC 1 — TEN MIEN + CLOUDFLARE (neu muon link co dinh)
+------------------------------
+1. Mua domain o Namecheap, GoDaddy, hoac TenTen (.vn)
+2. Vao https://dash.cloudflare.com → Add site → nhap domain
+3. Doi nameserver domain ve Cloudflare (huong dan tren man hinh Cloudflare)
+
+
+BUOC 2 — CAI CLOUDFLARED (WINDOWS)
+----------------------------------
+1. Tai: https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/
+2. Giai nen cloudflared.exe — dat vao PATH hoac thu muc de nho
+
+Dang nhap:
+  cloudflared tunnel login
+
+Tao tunnel:
+  cloudflared tunnel create phong-van
+
+Ghi lai Tunnel ID va file credentials (vi du C:\Users\<ban>\.cloudflared\<id>.json)
+
+
+BUOC 3 — CAU HINH TUNNEL
+------------------------
+1. Copy deploy\cloudflare-tunnel.example.yml thanh cloudflare-tunnel.yml (o thu muc Phong_van)
+2. Sua:
+   - credentials-file: duong dan file .json vua tao
+   - hostname: apply.yourdomain.com  (domain that cua ban)
+
+3. Tao DNS record:
+  cloudflared tunnel route dns phong-van apply.yourdomain.com
+
+4. Chay tunnel (giu cua so nay mo):
+  cloudflared tunnel --config cloudflare-tunnel.yml run
+
+
+BUOC 4 — BUILD + CHAY APP
+-------------------------
+Lan dau (hoac sau khi sua code):
+  build-public.bat
+
+Moi lan bat may (2 cua so cmd):
+  1) start-public.bat
+  2) cloudflared tunnel --config cloudflare-tunnel.yml run
+
+
+BUOC 5 — CAP NHAT .env (backend\.env)
+-------------------------------------
+Sua cac URL thanh domain that (https):
+
+  PUBLIC_APP_URL=https://apply.yourdomain.com
+  BACKEND_PUBLIC_URL=https://apply.yourdomain.com
+  MENTOR_ADMIN_URL=https://mentor.yourdomain.com/hjgafjkshdgfahjkkjcsdhkk/access-requests
+  MENTEE_PROFILE_URL=https://mentee.yourdomain.com/hskjchaihldkajj/profile
+
+Restart start-public.bat sau khi sua .env
+
+
+LINK GUI CHO MOI NGUOI
+----------------------
+Tunnel mien phi (start-tunnel-3link.bat):
+  3 link khac nhau trong LINK-3-CUA.txt
+
+Domain co dinh (Cloudflare Tunnel + subdomain):
+  https://mentee.yourdomain.com/hskjchaihldkajj/
+  https://mentor.yourdomain.com/hjgafjkshdgfahjkkjcsdhkk/login
+  https://admin.yourdomain.com/yaghkcjhaiuhahjks/login
+
+
+LUU Y
+-----
+- May tinh ban phai online khi nguoi khac truy cap (hoac deploy len VPS de chay 24/7)
+- MongoDB Atlas da online — khong can sua gi them cho database
+- Doi SECRET_KEY va mat khau admin trong .env truoc khi mo rong rai
+- Cloudflare Tunnel mien phi, domain co phi hang nam (thuong ~100-300k VND/nam)
+
+NEU MUON CHAY 24/7 KHONG CAN BAT MAY NHA
+----------------------------------------
+Deploy len VPS (DigitalOcean, Vultr, ...) cung cach build-public + nginx/Caddy + domain.
+Can ho tro rieng neu ban chon huong nay.

@@ -1,0 +1,255 @@
+.device-choice-page {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(1rem, env(safe-area-inset-top)) 1rem max(1rem, env(safe-area-inset-bottom));
+  background: linear-gradient(160deg, var(--pink-100) 0%, var(--pink-50) 45%, var(--white) 100%);
+}
+
+.device-choice-shell {
+  width: 100%;
+  max-width: 420px;
+  text-align: center;
+}
+
+.device-choice-kicker {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--pink-600);
+  margin-bottom: 0.5rem;
+}
+
+.device-choice-shell h1 {
+  font-size: 1.35rem;
+  color: var(--text);
+  margin-bottom: 0.45rem;
+}
+
+.device-choice-subtitle {
+  color: var(--text-muted);
+  font-size: 0.92rem;
+  margin-bottom: 1.25rem;
+  line-height: 1.45;
+}
+
+.device-choice-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.device-choice-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  width: 100%;
+  padding: 1.1rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--white);
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  text-align: center;
+  font: inherit;
+  color: inherit;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+.device-choice-card:hover {
+  border-color: var(--pink-400);
+  transform: translateY(-1px);
+}
+
+.device-choice-card strong {
+  font-size: 1rem;
+  color: var(--text);
+}
+
+.device-choice-hint {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.device-choice-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 999px;
+  margin-bottom: 0.15rem;
+}
+
+.device-choice-phone .device-choice-icon {
+  background: rgba(56, 161, 105, 0.12);
+  color: #276749;
+}
+
+.device-choice-laptop .device-choice-icon {
+  background: rgba(169, 115, 141, 0.12);
+  color: var(--pink-600);
+}
+
+.device-choice-note {
+  margin-top: 1rem;
+  font-size: 0.8rem;
+}
+
+.device-mode-settings {
+  margin-top: 0.75rem;
+}
+
+.device-mode-current {
+  font-size: 0.82rem;
+  margin-bottom: 0.55rem;
+}
+
+html.device-phone {
+  --phone-tab-height: 3.85rem;
+  --phone-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --phone-safe-top: env(safe-area-inset-top, 0px);
+}
+
+html.device-phone body {
+  -webkit-text-size-adjust: 100%;
+}
+
+html.device-phone .center-page {
+  align-items: flex-start;
+  padding: max(0.85rem, var(--phone-safe-top)) 0.85rem max(0.85rem, var(--phone-safe-bottom));
+}
+
+html.device-phone .auth-shell,
+html.device-phone .auth-card {
+  max-width: 100%;
+}
+
+html.device-phone .auth-card {
+  padding: 1.15rem;
+}
+
+html.device-phone .shell {
+  flex-direction: column;
+  min-height: 100dvh;
+  padding-bottom: calc(var(--phone-tab-height) + var(--phone-safe-bottom) + 2.5rem);
+}
+
+html.device-phone .sidebar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  top: auto;
+  width: 100%;
+  height: auto;
+  padding: 0;
+  padding-bottom: var(--phone-safe-bottom);
+  z-index: 120;
+  box-shadow: 0 -2px 16px rgba(74, 51, 64, 0.1);
+}
+
+html.device-phone .sidebar-brand {
+  display: none;
+}
+
+html.device-phone .sidebar-nav {
+  flex-direction: row;
+  justify-content: space-around;
+  padding: 0.35rem 0.2rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+html.device-phone .sidebar-link {
+  flex: 1 1 0;
+  min-width: 4rem;
+  text-align: center;
+  padding: 0.45rem 0.25rem;
+  font-size: 0.68rem;
+}
+
+html.device-phone .sidebar-footer {
+  display: none;
+}
+
+html.device-phone .sidebar-footer-device-mode {
+  display: block;
+  padding: 0.5rem 0.75rem calc(0.5rem + var(--phone-safe-bottom));
+  border-top: 1px solid var(--border);
+  background: var(--pink-50);
+}
+
+html.device-phone .main-shell {
+  width: 100%;
+}
+
+html.device-phone .topbar {
+  padding: 0.85rem 0.75rem 0.35rem;
+}
+
+html.device-phone .topbar h1 {
+  font-size: 1.05rem;
+}
+
+html.device-phone .topbar p {
+  font-size: 0.78rem;
+}
+
+html.device-phone .main-content {
+  padding: 0.75rem;
+}
+
+html.device-phone .main-content.protected-main {
+  padding-bottom: calc(1rem + var(--phone-tab-height) + var(--phone-safe-bottom));
+}
+
+html.device-phone .btn {
+  min-height: 44px;
+}
+
+html.device-phone input,
+html.device-phone select,
+html.device-phone textarea {
+  font-size: 16px;
+}
+
+html.device-phone .mentor-group-grid,
+html.device-phone .mentee-group-grid {
+  grid-template-columns: 1fr;
+}
+
+html.device-phone .watermark-footer {
+  bottom: calc(var(--phone-tab-height) + var(--phone-safe-bottom));
+}
+
+html.device-phone .account-logout-btn {
+  margin-top: 0.75rem;
+}
+
+html.device-phone .topbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+html.device-phone .sidebar-footer-device-mode {
+  display: block;
+  position: fixed;
+  bottom: calc(var(--phone-tab-height) + var(--phone-safe-bottom));
+  left: 0;
+  right: 0;
+  z-index: 119;
+  padding: 0.35rem 0.75rem;
+  background: var(--pink-50);
+  border-top: 1px solid var(--border);
+}
+
+.sidebar-footer-device-mode {
+  display: none;
+}

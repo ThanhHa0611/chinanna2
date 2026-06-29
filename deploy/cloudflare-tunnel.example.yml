@@ -1,0 +1,14 @@
+# Copy file nay thanh cloudflare-tunnel.yml va dien tunnel ID + domain cua ban.
+# Huong dan chi tiet: xem HUONG-DAN-LINK-CO-DINH.txt
+
+tunnel: phong-van
+credentials-file: C:\Users\<ten-ban>\.cloudflared\<tunnel-id>.json
+
+ingress:
+  - hostname: mentee.yourdomain.com
+    service: http://127.0.0.1:8080
+  - hostname: mentor.yourdomain.com
+    service: http://127.0.0.1:8080
+  - hostname: admin.yourdomain.com
+    service: http://127.0.0.1:8080
+  - service: http_status:404

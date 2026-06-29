@@ -1,0 +1,492 @@
+"""Mentor inbox tasks: email view/confirm links, reminders, home summary."""
+
+from __future__ import annotations
+
+import secrets
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
+
+DEFAULT_REMINDER_HOURS = 24
+TOKEN_TTL_DAYS = 30
+VN_TZ = ZoneInfo("Asia/Ho_Chi_Minh")
+SNOOZE_PRESETS: list[tuple[int, str]] = [
+    (24, "1 ngày"),
+    (72, "3 ngày"),
+    (168, "1 tuần"),
+]
+
+SECTION_DEFINITIONS: list[dict] = [
+    {
+        "key": "documents",
+        "label": "1. Giấy tờ apply",
+        "actions": {"document_upload"},
+    },
+    {
+        "key": "apply_progress",
+        "label": "2. Tiến độ apply",
+        "actions": {"apply_progress_request"},
+    },
+    {
+        "key": "feedback",
+        "label": "3. Phản hồi",
+        "actions": {"feedback"},
+    },
+    {
+        "key": "hdnk_nckh",
+        "label": "4. Keep track HDNK + NCKH",
+        "actions": {"hdnk_nckh_update"},
+    },
+    {
+        "key": "other",
+        "label": "5. Khác",
+        "actions": {"preferred_schools", "profile_update"},
+    },
+]
+
+ACTION_SUMMARY_VERBS: dict[str, str] = {
+    "document_upload": "đã nộp giấy tờ",
+    "apply_progress_request": "cập nhật tiến độ apply",
+    "feedback": "gửi phản hồi",
+    "hdnk_nckh_update": "cập nhật HDNK + NCKH",
+    "preferred_schools": "cập nhật trường ưa thích",
+    "profile_update": "cập nhật hồ sơ",
+}
+
+
+def _now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _vn_today_start() -> datetime:
+    local_now = datetime.now(VN_TZ)
+    start = local_now.replace(hour=0, minute=0, second=0, microsecond=0)
+    return start.astimezone(timezone.utc)
+
+
+def format_date_vn_title(value) -> str:
+    dt = _parse_dt(value)
+    if not dt:
+        return ""
+    return dt.astimezone(VN_TZ).strftime("%d.%m.%Y")
+
+
+def format_date_vn_line(value) -> str:
+    dt = _parse_dt(value)
+    if not dt:
+        return ""
+    local = dt.astimezone(VN_TZ)
+    return f"{local.day}/{local.month}/{local.year}"
+
+
+def _parse_dt(value) -> datetime | None:
+    if not value:
+        return None
+    if isinstance(value, datetime):
+        dt = value
+    elif isinstance(value, str):
+        try:
+            dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+    else:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
+def inbox_section_key(action: str) -> str:
+    for section in SECTION_DEFINITIONS:
+        if action in section["actions"]:
+            return section["key"]
+    return "other"
+
+
+def inbox_section_label(action: str) -> str:
+    for section in SECTION_DEFINITIONS:
+        if action in section["actions"]:
+            return section["label"]
+    return SECTION_DEFINITIONS[-1]["label"]
+
+
+def task_display_state(doc: dict) -> str:
+    if doc.get("status") == "done":
+        return "done"
+    if doc.get("viewed_at"):
+        return "viewed"
+    return "new"
+
+
+def format_task_summary_line(doc: dict) -> str:
+    created = _parse_dt(doc.get("created_at"))
+    date_part = ""
+    if created:
+        local = created.astimezone(VN_TZ)
+        date_part = f"{local.day}/{local.month}/{local.year}"
+    mentee = (doc.get("mentee_name") or doc.get("mentee_email") or "Mentee").strip()
+    action = doc.get("action") or ""
+    verb = ACTION_SUMMARY_VERBS.get(action)
+    if verb:
+        detail = doc.get("description") or doc.get("title") or ""
+        if action == "document_upload" and detail:
+            return f"{date_part} {mentee} {verb}: {detail}" if date_part else f"{mentee} {verb}: {detail}"
+        return f"{date_part} {mentee} {verb}" if date_part else f"{mentee} {verb}"
+    title = doc.get("title") or doc.get("description") or "Có cập nhật mới"
+    return f"{date_part} {title}" if date_part else title
+
+
+def task_visible_on_daily_board(doc: dict) -> bool:
+    if doc.get("status") == "pending":
+        return True
+    if doc.get("status") != "done":
+        return False
+    today_start = _vn_today_start()
+    for field in ("processed_at", "created_at"):
+        dt = _parse_dt(doc.get(field))
+        if dt and dt >= today_start:
+            return True
+    return False
+
+
+def serialize_inbox_task(doc: dict, *, base_url: str = "") -> dict:
+    display_state = task_display_state(doc)
+    payload = {
+        "id": str(doc["_id"]),
+        "mentee_id": doc.get("mentee_id", ""),
+        "mentee_name": doc.get("mentee_name", ""),
+        "mentee_email": doc.get("mentee_email", ""),
+        "mentor_name": doc.get("mentor_name", ""),
+        "action": doc.get("action", ""),
+        "section_key": inbox_section_key(doc.get("action", "")),
+        "section_label": inbox_section_label(doc.get("action", "")),
+        "title": doc.get("title", ""),
+        "description": doc.get("description", ""),
+        "summary_line": format_task_summary_line(doc),
+        "doc_id": doc.get("doc_id", ""),
+        "status": doc.get("status", "pending"),
+        "display_state": display_state,
+        "processed_at": doc["processed_at"].isoformat() if doc.get("processed_at") else "",
+        "processed_via": doc.get("processed_via", ""),
+        "created_at": doc["created_at"].isoformat() if doc.get("created_at") else "",
+        "next_reminder_at": doc["next_reminder_at"].isoformat() if doc.get("next_reminder_at") else "",
+        "reminder_interval_hours": doc.get("reminder_interval_hours", DEFAULT_REMINDER_HOURS),
+        "viewed_at": doc["viewed_at"].isoformat() if doc.get("viewed_at") else "",
+    }
+    if base_url:
+        urls = inbox_urls(base_url, doc)
+        payload["view_url"] = urls["view"]
+        payload["confirm_url"] = urls["confirm"]
+        payload["snooze_urls"] = inbox_snooze_urls(base_url, doc)
+    return payload
+
+
+def inbox_urls(base_url: str, task: dict) -> dict[str, str]:
+    base = base_url.rstrip("/")
+    view = f"{base}/api/email/inbox/view?token={task.get('view_token', '')}"
+    confirm = f"{base}/api/email/inbox/confirm?token={task.get('confirm_token', '')}"
+    file_url = f"{base}/api/email/inbox/file?token={task.get('view_token', '')}"
+    return {"view": view, "confirm": confirm, "file": file_url}
+
+
+def inbox_snooze_urls(base_url: str, task: dict) -> list[dict[str, str | int]]:
+    base = base_url.rstrip("/")
+    token = task.get("view_token", "")
+    return [
+        {
+            "hours": hours,
+            "label": label,
+            "url": f"{base}/api/email/inbox/snooze?token={token}&hours={hours}",
+        }
+        for hours, label in SNOOZE_PRESETS
+    ]
+
+
+def mentee_doc_urls(base_url: str, task: dict) -> dict[str, str]:
+    base = base_url.rstrip("/")
+    view = f"{base}/api/email/mentee/view?token={task.get('view_token', '')}"
+    file_url = f"{base}/api/email/mentee/file?token={task.get('view_token', '')}"
+    return {"view": view, "file": file_url}
+
+
+def create_mentor_inbox_task(
+    collection,
+    *,
+    mentor_name: str,
+    mentee_id: str,
+    mentee_name: str,
+    mentee_email: str,
+    action: str,
+    title: str,
+    description: str,
+    doc_id: str = "",
+    reminder_hours: int = DEFAULT_REMINDER_HOURS,
+) -> dict:
+    now = _now()
+    doc = {
+        "audience": "mentor",
+        "mentor_name": mentor_name,
+        "mentee_id": str(mentee_id),
+        "mentee_name": mentee_name,
+        "mentee_email": mentee_email,
+        "action": action,
+        "title": title,
+        "description": description,
+        "doc_id": doc_id or "",
+        "status": "pending",
+        "created_at": now,
+        "processed_at": None,
+        "processed_via": "",
+        "next_reminder_at": now + timedelta(hours=reminder_hours),
+        "reminder_interval_hours": reminder_hours,
+        "last_reminder_at": None,
+        "view_token": secrets.token_urlsafe(32),
+        "confirm_token": secrets.token_urlsafe(32),
+        "token_expires_at": now + timedelta(days=TOKEN_TTL_DAYS),
+    }
+    result = collection.insert_one(doc)
+    doc["_id"] = result.inserted_id
+    return doc
+
+
+def create_mentee_view_task(
+    collection,
+    *,
+    mentee_id: str,
+    mentee_email: str,
+    mentee_name: str,
+    action: str,
+    title: str,
+    description: str,
+    doc_id: str = "",
+    mentor_name: str = "",
+) -> dict:
+    now = _now()
+    doc = {
+        "audience": "mentee",
+        "mentor_name": mentor_name,
+        "mentee_id": str(mentee_id),
+        "mentee_name": mentee_name,
+        "mentee_email": mentee_email,
+        "action": action,
+        "title": title,
+        "description": description,
+        "doc_id": doc_id or "",
+        "status": "info",
+        "created_at": now,
+        "view_token": secrets.token_urlsafe(32),
+        "confirm_token": "",
+        "token_expires_at": now + timedelta(days=TOKEN_TTL_DAYS),
+    }
+    result = collection.insert_one(doc)
+    doc["_id"] = result.inserted_id
+    return doc
+
+
+def find_task_by_token(collection, token: str, field: str = "view_token") -> dict | None:
+    if not token:
+        return None
+    doc = collection.find_one({field: token})
+    if not doc:
+        return None
+    expires = doc.get("token_expires_at")
+    if expires and expires.tzinfo is None:
+        expires = expires.replace(tzinfo=timezone.utc)
+    if expires and expires < _now():
+        return None
+    return doc
+
+
+def mentor_inbox_filter(admin: dict, mentor_name: str) -> dict:
+    if admin.get("is_super_admin"):
+        return {"audience": "mentor"}
+    branch = (mentor_name or admin.get("mentor_name") or "").strip()
+    if branch:
+        return {"audience": "mentor", "mentor_name": branch}
+    return {"audience": "mentor", "mentor_name": "__none__"}
+
+
+def list_inbox_for_admin(collection, admin: dict, *, limit: int = 80, base_url: str = "") -> list[dict]:
+    mentor_name = (admin.get("mentor_name") or "").strip()
+    filt = mentor_inbox_filter(admin, mentor_name)
+    cursor = collection.find(filt).sort("created_at", -1).limit(limit * 2)
+    items = []
+    for doc in cursor:
+        if task_visible_on_daily_board(doc):
+            items.append(serialize_inbox_task(doc, base_url=base_url))
+        if len(items) >= limit:
+            break
+    return items
+
+
+def build_daily_board(items: list[dict]) -> dict:
+    today_label = format_date_vn_title(_now())
+    sections = []
+    for section in SECTION_DEFINITIONS:
+        section_items = [item for item in items if item.get("section_key") == section["key"]]
+        pending_count = sum(1 for item in section_items if item.get("status") == "pending")
+        sections.append(
+            {
+                "key": section["key"],
+                "label": section["label"],
+                "items": section_items,
+                "item_count": len(section_items),
+                "pending_count": pending_count,
+            }
+        )
+    return {
+        "date_label": today_label,
+        "title": f"Tổng hợp Trơn Tru ngày {today_label}",
+        "sections": sections,
+    }
+
+
+def confirm_inbox_task(collection, *, task_id=None, confirm_token=None, via: str = "app") -> dict | None:
+    from bson import ObjectId
+    from bson.errors import InvalidId
+
+    doc = None
+    if confirm_token:
+        doc = find_task_by_token(collection, confirm_token, "confirm_token")
+    elif task_id:
+        try:
+            doc = collection.find_one({"_id": ObjectId(task_id), "audience": "mentor"})
+        except InvalidId:
+            return None
+    if not doc or doc.get("status") == "done":
+        return doc
+
+    now = _now()
+    collection.update_one(
+        {"_id": doc["_id"]},
+        {
+            "$set": {
+                "status": "done",
+                "processed_at": now,
+                "processed_via": via,
+                "next_reminder_at": None,
+            }
+        },
+    )
+    doc["status"] = "done"
+    doc["processed_at"] = now
+    doc["processed_via"] = via
+    return doc
+
+
+def record_inbox_view(collection, task: dict) -> dict | None:
+    if not task or task.get("audience") != "mentor" or task.get("status") != "pending":
+        return task
+
+    now = _now()
+    interval = task.get("reminder_interval_hours") or DEFAULT_REMINDER_HOURS
+    collection.update_one(
+        {"_id": task["_id"]},
+        {
+            "$set": {
+                "viewed_at": now,
+                "next_reminder_at": now + timedelta(hours=interval),
+            }
+        },
+    )
+    return collection.find_one({"_id": task["_id"]})
+
+
+def snooze_inbox_by_token(collection, view_token: str, hours: int) -> dict | None:
+    task = find_task_by_token(collection, view_token, "view_token")
+    if not task or task.get("audience") != "mentor" or task.get("status") != "pending":
+        return None
+    if hours <= 0 or hours > 24 * 30:
+        return None
+
+    now = _now()
+    collection.update_one(
+        {"_id": task["_id"]},
+        {
+            "$set": {
+                "reminder_interval_hours": hours,
+                "next_reminder_at": now + timedelta(hours=hours),
+            }
+        },
+    )
+    return collection.find_one({"_id": task["_id"]})
+
+
+def update_reminder_schedule(
+    collection,
+    task_id: str,
+    *,
+    hours: int | None = None,
+    reminder_at: datetime | None = None,
+) -> dict | None:
+    from bson import ObjectId
+    from bson.errors import InvalidId
+
+    try:
+        oid = ObjectId(task_id)
+    except InvalidId:
+        return None
+
+    doc = collection.find_one({"_id": oid, "audience": "mentor", "status": "pending"})
+    if not doc:
+        return None
+
+    now = _now()
+    patch: dict = {}
+    if reminder_at is not None:
+        if reminder_at.tzinfo is None:
+            reminder_at = reminder_at.replace(tzinfo=timezone.utc)
+        if reminder_at <= now:
+            return None
+        delta = reminder_at - now
+        patch["reminder_interval_hours"] = max(1, int(delta.total_seconds() // 3600))
+        patch["next_reminder_at"] = reminder_at
+    elif hours is not None and hours > 0:
+        patch["reminder_interval_hours"] = hours
+        patch["next_reminder_at"] = now + timedelta(hours=hours)
+    else:
+        return serialize_inbox_task(doc)
+
+    collection.update_one({"_id": oid}, {"$set": patch})
+    doc = collection.find_one({"_id": oid})
+    return serialize_inbox_task(doc)
+
+
+def process_due_reminders(collection, send_daily_summary) -> int:
+    """Group due tasks by mentor and send one daily summary email per mentor."""
+    now = _now()
+    filt = {
+        "audience": "mentor",
+        "status": "pending",
+        "next_reminder_at": {"$lte": now},
+    }
+
+    due_docs = list(collection.find(filt).sort("created_at", 1).limit(200))
+    if not due_docs:
+        return 0
+
+    by_mentor: dict[str, list[dict]] = {}
+    for doc in due_docs:
+        mentor = (doc.get("mentor_name") or "").strip() or "__none__"
+        by_mentor.setdefault(mentor, []).append(doc)
+
+    sent = 0
+    for mentor_name, tasks in by_mentor.items():
+        if mentor_name == "__none__":
+            continue
+        try:
+            if send_daily_summary(mentor_name, tasks):
+                for doc in tasks:
+                    interval = doc.get("reminder_interval_hours") or DEFAULT_REMINDER_HOURS
+                    collection.update_one(
+                        {"_id": doc["_id"]},
+                        {
+                            "$set": {
+                                "last_reminder_at": now,
+                                "next_reminder_at": now + timedelta(hours=interval),
+                            }
+                        },
+                    )
+                sent += 1
+        except Exception:
+            continue
+    return sent

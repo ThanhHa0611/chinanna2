@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-label="Tr¡n Tru HÙi">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fde8ef"/>
+      <stop offset="100%" stop-color="#fff5f8"/>
+    </linearGradient>
+  </defs>
+  <rect width="200" height="200" rx="24" fill="url(#bg)"/>
+  <circle cx="100" cy="78" r="34" fill="#f5c6d6"/>
+  <path d="M66 78c0-18 15-32 34-32s34 14 34 32" fill="#4a3340"/>
+  <circle cx="88" cy="82" r="4" fill="#4a3340"/>
+  <circle cx="112" cy="82" r="4" fill="#4a3340"/>
+  <path d="M92 94c4 4 12 4 16 0" fill="none" stroke="#c98da8" stroke-width="3" stroke-linecap="round"/>
+  <path d="M52 148c8-28 28-42 48-42s40 14 48 42" fill="#eb2233" opacity="0.85"/>
+  <text x="100" y="178" text-anchor="middle" font-family="Arial,sans-serif" font-size="14" font-weight="700" fill="#9b0c0c">Tr¡n Tru</text>
+</svg>
