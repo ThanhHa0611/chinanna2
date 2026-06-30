@@ -19,12 +19,11 @@ from config import (
 )
 from database import admins, users
 from services.apply_progress import (
-    admin_display_name,
-    extract_apply_progress_fields,
     get_apply_progress_rows_raw,
     mark_apply_progress_activity_processed,
-    push_apply_progress_activity,
 )
+from services.admins import admin_display_name, log_mentor_activity
+from services.misc import extract_apply_progress_fields
 from services.inbox import render_email_action_page
 
 BACKEND_PUBLIC_URL = os.getenv("BACKEND_PUBLIC_URL", "http://127.0.0.1:8000").strip().rstrip("/")
@@ -397,8 +396,6 @@ def handle_email_registration_action(action_key: str, decision: str):
     )
     _clear_registration_tokens(mentee["_id"])
 
-    from services.admins import log_mentor_activity
-
     verb = "duyệt" if status == ADMIN_STATUS_APPROVED else "từ chối"
     log_mentor_activity(
         reviewer,
@@ -459,8 +456,6 @@ def handle_email_apply_progress_action(action_key: str, decision: str):
             message="Các dòng này không còn chỉnh sửa chờ duyệt.",
             success=False,
         )
-
-    from services.admins import log_mentor_activity
 
     log_mentor_activity(
         reviewer,
